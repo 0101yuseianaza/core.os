@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C.O.R.E. — Central Operating & Research Environment</title>
+<!-- Google API (Identity & Drive) ライブラリ -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+<!-- Mermaid.js (AIによる図解・フローチャート・マインドマップ自動描画) -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<!-- KaTeX (美しいLaTeX数式表示) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+<style>
+:root {
+  --bg-color: #f8fafc;
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.95);
+  --glass-shadow: rgba(0, 0, 0, 0.08);
+  --border-color: rgba(226, 232, 240, 0.8);
+  --accent-color: #007aff;
+  --drive-color: #0f9d58;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --win-header-bg: rgba(241, 245, 249, 0.9);
+  --sidebar-width: 280px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic", sans-serif; }
+body {
+  background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden; position: relative;
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(0, 122, 255, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(52, 199, 89, 0.08) 0%, transparent 40%),
+    linear-gradient(135deg, #f1f5f9 0%, #ffffff 100%);
+}
+body.drag-over::after {
+  content: '📄 ここにPDFや画像をドロップしてC.O.R.E.で解析'; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0, 122, 255, 0.15); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: bold; color: var(--accent-color); border: 4px dashed var(--accent-color); z-index: 9999; pointer-events: none;
+}
+.system-header {
+  height: 48px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.6); background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(20px); z-index: 500; position: relative;
+}
+.brand-section { display: flex; align-items: center; gap: 12px; }
+.menu-toggle { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-main); padding: 4px 8px; border-radius: 8px; }
+.menu-toggle:hover { background: rgba(0, 0, 0, 0.05); }
+.brand-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: 1px; color: var(--text-main); font-size: 1.1rem; }
+.core-orb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent-color); box-shadow: 0 0 8px rgba(0, 122, 255, 0.5); }
+.global-controls { display: flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, 0.04); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 0, 0, 0.05); }
+.ctrl-btn { display: flex; align-items: center; gap: 4px; border: none; background: transparent; cursor: pointer; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); padding: 3px 8px; border-radius: 12px; transition: all 0.2s; }
+.ctrl-btn:hover { background: rgba(255, 255, 255, 0.8); color: var(--text-main); }
+.ctrl-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.ctrl-dot.red { background: #ff5f56; }
+.ctrl-dot.yellow { background: #ffbd2e; }
+.sync-status { font-size: 0.75rem; color: #10b981; display: flex; align-items: center; gap: 4px; background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 12px; }
+
+.sidebar-overlay { position: fixed; top: 48px; left: 0; width: 100vw; height: calc(100vh - 48px); background: rgba(0, 0, 0, 0.15); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 400; }
+.sidebar-overlay.active { opacity: 1; pointer-events: auto; }
+.sidebar { position: fixed; top: 48px; left: calc(-1 * var(--sidebar-width)); width: var(--sidebar-width); height: calc(100vh - 48px); background: rgba(255, 255, 255, 0.85); border-right: 1px solid rgba(226, 232, 240, 0.9); backdrop-filter: blur(25px); transition: left 0.3s ease; z-index: 450; padding: 16px; display: flex; flex-direction: column; }
+.sidebar.open { left: 0; }
+.sidebar-header { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+.log-list { list-style: none; overflow-y: auto; flex: 1; }
+.log-item { padding: 10px 12px; border-radius: 10px; font-size: 0.88rem; color: var(--text-main); cursor: pointer; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all 0.2s; }
+.log-item:hover { background: rgba(0, 122, 255, 0.08); color: var(--accent-color); }
+
+.desktop { position: relative; width: 100%; height: calc(100vh - 48px); padding: 24px; }
+.central-chat-container { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%); width: 100%; max-width: 780px; height: 520px; z-index: 200; display: flex; flex-direction: column; }
+.central-title { font-size: 2.2rem; font-weight: 300; letter-spacing: 8px; margin-bottom: 12px; color: #000; text-align: center; }
+.central-chat-box { flex: 1; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 20px; padding: 18px; backdrop-filter: blur(30px); box-shadow: 0 20px 50px var(--glass-shadow); display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.chat-msg { max-width: 90%; padding: 14px 18px; border-radius: 16px; font-size: 0.94rem; line-height: 1.75; letter-spacing: 0.02em; white-space: pre-wrap; word-break: break-word; }
+.chat-msg.core { background: rgba(255, 255, 255, 0.96); color: var(--text-main); align-self: flex-start; border: 1px solid rgba(0, 122, 255, 0.15); box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+.chat-msg.core ul, .chat-msg.core ol { margin-left: 20px; margin-top: 6px; margin-bottom: 6px; }
+.chat-msg.core li { margin-bottom: 4px; }
+.chat-msg.core h3, .chat-msg.core h4 { margin-top: 10px; margin-bottom: 6px; color: #1e293b; }
+.chat-msg.core strong { color: #007aff; }
+.chat-msg.user { background: var(--accent-color); color: #fff; align-self: flex-end; }
+.chat-input-area { display: flex; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(0, 0, 0, 0.05); }
+.chat-input { flex: 1; background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; padding: 10px 14px; font-size: 0.95rem; outline: none; }
+.btn-action { background: rgba(0, 0, 0, 0.05); border: 1px solid rgba(0, 0, 0, 0.08); color: var(--text-main); padding: 8px 12px; border-radius: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.btn-action.drive { background: rgba(15, 157, 88, 0.1); color: var(--drive-color); border-color: rgba(15, 157, 88, 0.2); }
+.btn-action.drive:hover { background: rgba(15, 157, 88, 0.2); }
+.btn-send { background: var(--accent-color); color: #fff; border: none; padding: 0 20px; height: 42px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+
+.window { position: absolute; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08); backdrop-filter: blur(30px); display: flex; flex-direction: column; overflow: hidden; z-index: 100; resize: both; }
+.window.minimized { height: 40px !important; resize: none !important; }
+.window.minimized .window-body { display: none; }
+.window-header { height: 40px; background: var(--win-header-bg); border-bottom: 1px solid rgba(0, 0, 0, 0.05); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: move; user-select: none; flex-shrink: 0; }
+.window-title { font-size: 0.85rem; font-weight: 600; color: #334155; }
+.win-actions { display: flex; align-items: center; gap: 6px; }
+.window-btn { width: 12px; height: 12px; border-radius: 50%; border: none; cursor: pointer; }
+.window-btn.close { background: #ff5f56; }
+.window-btn.minimize { background: #ffbd2e; }
+.window-body { flex: 1; padding: 18px; overflow-y: auto; font-size: 0.92rem; line-height: 1.6; }
+.pdf-embed { width: 100%; height: 100%; border: none; min-height: 300px; }
+
+.page-nav-bar { position: fixed; bottom: 20px; z-index: 300; display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.85); border: 1px solid var(--glass-border); border-radius: 30px; padding: 6px 14px; backdrop-filter: blur(20px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
+.page-nav-bar.left { left: 20px; }
+.page-nav-bar.right { right: 20px; }
+.page-btn { background: rgba(0, 0, 0, 0.05); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-weight: bold; color: var(--text-main); display: flex; align-items: center; justify-content: center; }
+.page-btn:hover { background: var(--accent-color); color: #fff; }
+.page-indicator { font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
+</style>
+</head>
+<body>
+<header class="system-header">
+  <div class="brand-section">
+    <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+    <div class="brand-logo"><div class="core-orb"></div> C.O.R.E. OS</div>
+    <div class="global-controls">
+      <button class="ctrl-btn" onclick="toggleMinimizeAllWindows()"><span class="ctrl-dot yellow"></span> 最小化</button>
+      <button class="ctrl-btn" onclick="closeAllWindows()"><span class="ctrl-dot red"></span> すべて消す</button>
+    </div>
+  </div>
+  <div class="sync-status">⚡ Auto-Drive & Multi-AI Ready</div>
+</header>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">📜 全ページの会話ログ履歴</div>
+  <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+    <button class="ctrl-btn" style="flex:1; justify-content:center; background: rgba(0,122,255,0.1); color: var(--accent-color); padding: 6px;" onclick="exportLogs('md')">📥 Markdown保存</button>
+    <button class="ctrl-btn" style="flex:1; justify-content:center; background: rgba(0,0,0,0.05); padding: 6px;" onclick="exportLogs('json')">📥 JSON保存</button>
+  </div>
+  <ul class="log-list" id="logList"></ul>
+</aside>
+
+<main class="desktop" id="desktop">
+  <div class="central-chat-container">
+    <div class="central-title">C.O.R.E.</div>
+    <div class="central-chat-box">
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-area">
+        <input type="file" id="filePicker" accept="application/pdf,image/*" style="display:none" onchange="handleFileSelect(event)">
+        <button class="btn-action" onclick="document.getElementById('filePicker').click()">📎 PCから</button>
+        <button class="btn-action drive" onclick="openGoogleDrivePicker()">📁 手動連携</button>
+        <button class="btn-action" style="color: #8b5cf6; border-color: rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.08);" onclick="handleDiagramRequest()">📊 図解化</button>
+        <input type="text" id="chatInput" class="chat-input" placeholder="例: 「微分積分の教科書を出して」または「図解して」">
+        <button class="btn-send" onclick="handleCoreSubmit()">送信</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="page-nav-bar left">
+  <button class="page-btn" onclick="switchPage(-1)">◀</button>
+  <span class="page-indicator" id="pageLabelLeft">Page 1 / 3</span>
+  <button class="page-btn" onclick="switchPage(1)">▶</button>
+</div>
+<div class="page-nav-bar right">
+  <button class="page-btn" onclick="switchPage(-1)">◀</button>
+  <span class="page-indicator" id="pageLabelRight">Page 1 / 3</span>
+  <button class="page-btn" onclick="switchPage(1)">▶</button>
+</div>
+
+<script>
+// 🔑 設定項目（AIのAPIキーはバックエンドの .env で安全に管理されています）
+const GOOGLE_CLIENT_ID = '122418775356-mj9aloimggs044neoah92u3s5odv2kqe.apps.googleusercontent.com';
+
+let windowIndex = 200;
+let isMinimizedAll = false;
+let currentPage = 1;
+const maxPages = 3;
+let attachedFile = null;
+let tokenClient = null;
+let accessToken = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadWorkspaceState(currentPage);
+  updateSidebarLogs();
+  setupDragAndDrop();
+  initGoogleDriveAuth();
+});
+
+// --- Google Drive API 認証 ＆ バックグラウンド自動検索 Engine ---
+function initGoogleDriveAuth() {
+  if (typeof google !== 'undefined' && google.accounts) {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: (tokenResponse) => {
+        if (tokenResponse.access_token) {
+          accessToken = tokenResponse.access_token;
+        }
+      },
+    });
+  }
+}
+
+let tokenExpireTime = 0; // トークンの有効期限タイムスタンプ
+
+// ドライブ認証の要求（未アクセスまたは有効期限切れの場合は自動再取得）
+async function ensureDriveAccess(forceRefresh = false) {
+  const isExpired = Date.now() > tokenExpireTime;
+  if (!tokenClient) {
+    initGoogleDriveAuth();
+  }
+  if (!tokenClient) return false;
+
+  if (!accessToken || isExpired || forceRefresh) {
+    console.log('🔄 Google Drive アクセストークンを取得・更新中...');
+    return new Promise((resolve) => {
+      tokenClient.callback = (res) => {
+        if (res.access_token) {
+          accessToken = res.access_token;
+          // 有効期限（3600秒）の少し前（3300秒後）を期限として設定
+          tokenExpireTime = Date.now() + (res.expires_in ? (res.expires_in - 300) * 1000 : 3300 * 1000);
+          console.log('✅ Google Drive アクセストークンを更新しました');
+          resolve(true);
+        } else {
+          console.warn('❌ トークン取得に失敗しました:', res);
+          resolve(false);
+        }
+      };
+      // サイレント（ポップアップなし）でトークン更新を試行
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+  }
+  return true;
+}
+
+// ⚡ 【超高精度・表記揺れ対応 Google Drive 検索エンジン】
+// 同義語・表記揺れ辞書
+const SYNONYM_MAP = {
+  '微積': ['微積', '微分積分', '解析', 'calculus', '微分', '積分'],
+  '微分積分': ['微積', '微分積分', '解析', 'calculus', '微分', '積分'],
+  '線形代数': ['線形代数', '線形', '行列', 'linear', '代数'],
+  '確率': ['確率', '統計', '確率統計', 'probability', 'statistics'],
+  '統計': ['統計', '確率統計', '確率', 'statistics', 'データ分析'],
+  '物理': ['物理', '力学', '電磁気', 'physics', '波', '波動'],
+  '波': ['波', '波動', 'wave', '振動'],
+  '力学': ['力学', '物理', 'mechanics', '古典力学'],
+  '電磁気': ['電磁気', '物理', 'electromagnetism'],
+  '化学': ['化学', '有機', '無機', 'chemistry'],
+  '英語': ['英語', 'english', 'toeic', 'toefl', 'リーディング'],
+  '教科書': ['教科書', 'テキスト', '教材', 'textbook', '本'],
+  'ノート': ['ノート', 'goodnotes', '手書き', 'note', '筆記'],
+  '過去問': ['過去問', '試験', '期末', '中間', 'テスト', 'exam', '問題'],
+  '課題': ['課題', 'レポート', '宿題', 'assignment', 'report'],
+  '動画': ['動画', 'スライド', 'レジュメ', '講義', 'vrew', 'movie', 'video', '授業'],
+  '復習': ['復習', 'まとめ', '要約', 'review']
+};
+
+let driveFilesCache = null; // ファイル一覧キャッシュ
+let driveFoldersCache = null; // フォルダ一覧キャッシュ
+
+// Drive内の全フォルダとPDF一覧を一括取得（トークン切れ自動リカバリ付き）
+async function scanDriveFilesAndFolders(statusCallback = null) {
+  if (driveFilesCache && driveFoldersCache) {
+    return { files: driveFilesCache, folders: driveFoldersCache };
+  }
+
+  if (statusCallback) statusCallback('🔍 Google Driveのフォルダ・PDF一覧をスキャン中...');
+
+  let retryCount = 0;
+  while (retryCount < 2) {
+    try {
+      // 1. フォルダ一覧取得
+      const folderRes = await fetch("https://www.googleapis.com/drive/v3/files?q=" + 
+        encodeURIComponent("mimeType = 'application/vnd.google-apps.folder' and trashed = false") + 
+        "&fields=files(id, name)&pageSize=100", {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      // 401（トークン期限切れ）の場合はトークンを再取得して再試行
+      if (folderRes.status === 401) {
+        console.warn('⚠️ トークン期限切れ(401)を検知。トークンを強制再取得します...');
+        if (statusCallback) statusCallback('🔄 Google Driveのログイン有効期限を自動更新中...');
+        const refreshed = await ensureDriveAccess(true);
+        if (!refreshed) throw new Error('Google Driveの認証更新に失敗しました。');
+        retryCount++;
+        continue;
+      }
+
+      const folderData = await folderRes.json();
+      driveFoldersCache = folderData.files || [];
+
+      // 2. PDF一覧取得（最大100件）
+      const fileRes = await fetch("https://www.googleapis.com/drive/v3/files?q=" + 
+        encodeURIComponent("mimeType = 'application/pdf' and trashed = false") + 
+        "&fields=files(id, name, parents, modifiedTime)&pageSize=100&orderBy=modifiedTime desc", {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      if (fileRes.status === 401) {
+        retryCount++;
+        continue;
+      }
+
+      const fileData = await fileRes.json();
+      driveFilesCache = fileData.files || [];
+
+      console.log(`📂 Driveスキャン完了: フォルダ ${driveFoldersCache.length} 件、PDF ${driveFilesCache.length} 件を検出`);
+      if (statusCallback) statusCallback(`📂 Drive内に ${driveFoldersCache.length} 個のフォルダと ${driveFilesCache.length} 個のPDFを検出しました`);
+
+      // 1分後にキャッシュをリフレッシュ
+      setTimeout(() => { driveFilesCache = null; driveFoldersCache = null; }, 60 * 1000);
+
+      return { files: driveFilesCache, folders: driveFoldersCache };
+    } catch (e) {
+      console.warn('Driveスキャンエラー:', e);
+      if (retryCount >= 1) return { files: [], folders: [] };
+      retryCount++;
+    }
+  }
+
+  return { files: [], folders: [] };
+}
+
+// ユーザー入力から関連キーワード・同義語を抽出・拡張
+function extractExpandedKeywords(text) {
+  const words = text
+    .replace(/(を出して|をみせて|を表示して|を開いて|について|の|を|で|が|は|へ|って|まとめて|要約して|解説して)/g, ' ')
+    .trim()
+    .split(/\s+/);
+
+  const expanded = new Set();
+  words.forEach(w => {
+    if (w.length >= 2) expanded.add(w);
+    for (const [key, synonyms] of Object.entries(SYNONYM_MAP)) {
+      if (w.includes(key) || key.includes(w)) {
+        synonyms.forEach(s => expanded.add(s));
+      }
+    }
+  });
+
+  return Array.from(expanded);
+}
+
+// 文字の重なり度合い（N-gramスコア）
+function calcOverlapScore(target, query) {
+  let matchedCount = 0;
+  for (let i = 0; i < query.length; i++) {
+    if (target.includes(query[i])) matchedCount++;
+  }
+  return query.length > 0 ? (matchedCount / query.length) * 15 : 0;
+}
+
+// ⚡ 【超高精度スコアリング検索】
+async function autoFetchDriveFile(rawText) {
+  const hasAccess = await ensureDriveAccess();
+  if (!hasAccess) return null;
+
+  try {
+    const { files, folders } = await scanDriveFilesAndFolders();
+    if (!files || files.length === 0) {
+      console.warn('Drive内にPDFが見つかりませんでした。');
+      return null;
+    }
+
+    const isTextbookRequest = rawText.includes('教科書') || rawText.includes('テキスト');
+    const isNoteRequest = rawText.includes('ノート') || rawText.includes('GoodNotes') || rawText.includes('goodnotes');
+    const expandedKeywords = extractExpandedKeywords(rawText);
+
+    // 入力文から回数・週数・番号（例:「1週」「第2回」「1講」「1_」）などの数字を抽出
+    const numMatch = rawText.match(/(\d+)\s*(週|回|講|章|日目)?/);
+    const targetNum = numMatch ? numMatch[1] : null;
+
+    console.log(`🔍 検索実行: 入力文「${rawText}」 | 抽出番号: ${targetNum} | 拡張キーワード:`, expandedKeywords);
+
+    // 全PDFに対してスコアリングを実施
+    const scoredFiles = files.map(file => {
+      let score = 0;
+      const fileNameLower = file.name.toLowerCase();
+
+      // 親フォルダの取得
+      const parentFolder = folders.find(f => file.parents && file.parents.includes(f.id));
+      const folderNameLower = parentFolder ? parentFolder.name.toLowerCase() : '';
+
+      // ① 親フォルダ名が入力文に含まれている場合（特大加点 +50点）
+      // 例: 入力文「物理1週の動画」で親フォルダ名が「物理」なら大加点！
+      if (folderNameLower && rawText.toLowerCase().includes(folderNameLower)) {
+        score += 50;
+      }
+
+      // ② 週番号・回数の数字一致判定（大加点 +40点）
+      // 例: 「1週」でファイル名が「1_波の復習...」なら大加点！
+      if (targetNum) {
+        const numRegex = new RegExp(`(^|[^0-9])${targetNum}(_|\\s|-|回|講|週|章|\\.)`);
+        if (numRegex.test(fileNameLower)) {
+          score += 40;
+        }
+      }
+
+      // ③ 種別フォルダの一致（+35点）
+      if (isTextbookRequest && (folderNameLower.includes('教科書') || folderNameLower.includes('textbook') || folderNameLower.includes('テキスト'))) {
+        score += 35;
+      }
+      if (isNoteRequest && (folderNameLower.includes('ノート') || folderNameLower.includes('goodnotes') || folderNameLower.includes('note'))) {
+        score += 35;
+      }
+
+      // ④ 拡張キーワードとの一致（最大 +40点）
+      expandedKeywords.forEach(kw => {
+        const kwLower = kw.toLowerCase();
+        if (fileNameLower.includes(kwLower)) {
+          score += 25;
+          if (fileNameLower.startsWith(kwLower)) score += 10;
+        }
+        if (folderNameLower.includes(kwLower)) {
+          score += 15;
+        }
+      });
+
+      // ⑤ 部分一致度（N-gram）（最大 +15点）
+      score += calcOverlapScore(fileNameLower, rawText);
+
+      // ⑥ 減点ルール（誤爆防止）
+      if (isTextbookRequest && (fileNameLower.includes('goodnotes') || fileNameLower.includes('ノート') || folderNameLower.includes('goodnotes'))) {
+        score -= 60;
+      }
+      if (isNoteRequest && (fileNameLower.includes('教科書') || folderNameLower.includes('教科書'))) {
+        score -= 60;
+      }
+
+      return {
+        file: file,
+        score: score,
+        folderName: parentFolder ? parentFolder.name : ''
+      };
+    });
+
+    // スコア降順にソート
+    scoredFiles.sort((a, b) => b.score - a.score);
+
+    console.log('📊 スコア上位ファイル:', scoredFiles.slice(0, 3).map(s => `${s.file.name} (点数: ${s.score.toFixed(1)}, フォルダ: ${s.folderName})`));
+
+    const topResult = scoredFiles[0];
+    if (!topResult || topResult.score <= 15) {
+      console.warn('十分なスコアに達するPDFが見つかりませんでした。最高点:', topResult ? topResult.score : 0);
+      return null;
+    }
+
+    const chosenFile = topResult.file;
+    const folderName = topResult.folderName;
+
+    // 2位以下の次点候補（もしあれば保存）
+    const otherCandidates = scoredFiles.slice(1, 4).filter(s => s.score >= 20);
+
+    // 実データを取得
+    const contentRes = await fetch(`https://www.googleapis.com/drive/v3/files/${chosenFile.id}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const blob = await contentRes.blob();
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target.result.split(',')[1];
+        const fileObj = {
+          name: chosenFile.name,
+          type: 'application/pdf',
+          base64: base64,
+          url: `https://drive.google.com/file/d/${chosenFile.id}/preview`,
+          folderName: folderName,
+          score: topResult.score,
+          otherCandidates: otherCandidates
+        };
+
+        // 📄 PDFウィンドウを展開
+        const winTitle = folderName ? `📄 [${folderName}] ${chosenFile.name}` : `📄 Drive取得: ${chosenFile.name}`;
+        const embedHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(0,0,0,0.06);">
+            <span style="font-size:0.8rem; color:#64748b;">⚡ SumatraPDFと自動連動中 (一致度: ${Math.min(100, Math.round(topResult.score))}%)</span>
+            <button class="btn-action" style="padding:4px 10px; font-size:0.75rem;" onclick="openInSumatraPDF('${chosenFile.name.replace(/'/g, "\\'")}', '${base64}')">⚡ SumatraPDFで開く</button>
+          </div>
+          <iframe src="${fileObj.url}" class="pdf-embed"></iframe>
+        `;
+        createWindow(winTitle, embedHTML, 450, 480, window.innerWidth - 480, 60);
+
+        // 🚀 SumatraPDF を即時自動起動！
+        openInSumatraPDF(chosenFile.name, base64);
+        resolve(fileObj);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn('高精度Drive取得エラー:', e);
+  }
+  return null;
+}
+
+// 候補ボタンから直接ファイルを開く関数
+async function openDriveFileById(fileId, fileName, folderName = '') {
+  try {
+    const contentRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const blob = await contentRes.blob();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target.result.split(',')[1];
+      const winTitle = folderName ? `📄 [${folderName}] ${fileName}` : `📄 Drive取得: ${fileName}`;
+      const embedHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(0,0,0,0.06);">
+          <span style="font-size:0.8rem; color:#64748b;">⚡ SumatraPDFと自動連動中</span>
+          <button class="btn-action" style="padding:4px 10px; font-size:0.75rem;" onclick="openInSumatraPDF('${fileName.replace(/'/g, "\\'")}', '${base64}')">⚡ SumatraPDFで開く</button>
+        </div>
+        <iframe src="https://drive.google.com/file/d/${fileId}/preview" class="pdf-embed"></iframe>
+      `;
+      createWindow(winTitle, embedHTML, 450, 480, window.innerWidth - 480, 60);
+      openInSumatraPDF(fileName, base64);
+    };
+    reader.readAsDataURL(blob);
+  } catch (e) {
+    alert('ファイルの取得に失敗しました: ' + e.message);
+  }
+}
+
+function openGoogleDrivePicker() {
+  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('ここに取得した')) {
+    alert('コード内の GOOGLE_CLIENT_ID にクライアントIDが設定されていません。');
+    return;
+  }
+
+  // tokenClient が未初期化の場合は再初期化
+  if (!tokenClient) {
+    initGoogleDriveAuth();
+  }
+
+  if (!tokenClient) {
+    alert('Google APIライブラリを読み込み中です。数秒待ってから再度お試しください。');
+    return;
+  }
+
+  if (!accessToken) {
+    tokenClient.callback = (tokenResponse) => {
+      if (tokenResponse.access_token) {
+        accessToken = tokenResponse.access_token;
+        showPicker();
+      } else if (tokenResponse.error) {
+        console.error('Google認証エラー:', tokenResponse);
+        alert('Google認証でエラーが発生しました: ' + (tokenResponse.error_description || tokenResponse.error));
+      }
+    };
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  } else {
+    showPicker();
+  }
+}
+
+function showPicker() {
+  gapi.load('picker', () => {
+    const view = new google.picker.View(google.picker.ViewId.DOCS);
+    view.setMimeTypes('application/pdf,image/png,image/jpeg');
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(accessToken)
+      .setCallback(pickerCallback)
+      .build();
+    picker.setVisible(true);
+  });
+}
+
+async function pickerCallback(data) {
+  if (data.action === google.picker.Action.PICKED) {
+    const doc = data.docs[0];
+    const fileId = doc.id;
+    const fileName = doc.name;
+
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const blob = await res.blob();
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target.result.split(',')[1];
+      attachedFile = {
+        name: fileName,
+        type: 'application/pdf',
+        base64: base64,
+        url: `https://drive.google.com/file/d/${fileId}/preview`
+      };
+
+      const embedHTML = `<iframe src="${attachedFile.url}" class="pdf-embed"></iframe>`;
+      createWindow(`📄 Google Drive: ${fileName}`, embedHTML, 450, 480, window.innerWidth - 480, 60);
+      saveWorkspaceState(currentPage);
+    };
+    reader.readAsDataURL(blob);
+  }
+}
+
+// --- バックエンド連携マルチAIエンジン（Groq -> OpenRouter -> Gemini フォールバック対応） ---
+async function callMultiAIEngine(prompt, fileData = null) {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt: prompt,
+      fileData: fileData ? {
+        name: fileData.name,
+        type: fileData.type,
+        base64: fileData.base64
+      } : null
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'サーバーとの通信に失敗しました。');
+  }
+
+  return data.text;
+}
+
+async function handleCoreSubmit() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text && !attachedFile) return;
+
+  const chatMessages = document.getElementById('chatMessages');
+
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg user';
+  userMsg.textContent = text;
+  chatMessages.appendChild(userMsg);
+  input.value = '';
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  const coreMsg = document.createElement('div');
+  coreMsg.className = 'chat-msg core';
+  coreMsg.textContent = '思考・処理中...';
+  chatMessages.appendChild(coreMsg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  // 💡 【自動ファイル検索検知】「〜を出して」「〜の教科書」「〜の動画」「〜をまとめて」「〜を要約して」など
+  let autoFile = null;
+  const triggerWords = ['出して', 'みせて', '表示して', '開いて', '教科書', 'ノート', '資料', '過去問', 'レジュメ', '課題', '動画', 'まとめて', 'まとめ', '要約', '解説', '教えて', 'スライド', '講義', '波'];
+  const isSummarizeRequest = /(まとめて|まとめ|要約|解説|教えて|質問|ポイント|復習|分析)/.test(text);
+
+  if (!attachedFile && triggerWords.some(w => text.includes(w))) {
+    coreMsg.textContent = '🔍 Google Drive内から該当フォルダ・PDF資料を自動検索中...';
+    autoFile = await autoFetchDriveFile(text);
+
+    if (autoFile) {
+      const folderInfo = autoFile.folderName ? `（📁 フォルダ: 「${autoFile.folderName}」）` : '';
+      const matchRate = Math.min(100, Math.round(autoFile.score));
+      
+      let candidateButtonsHTML = '';
+      if (autoFile.otherCandidates && autoFile.otherCandidates.length > 0) {
+        candidateButtonsHTML += `<div style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(0,0,0,0.1); font-size:0.82rem;">`;
+        candidateButtonsHTML += `<span style="color:#64748b;">💡 他の候補（クリックで即座に切替）：</span><div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">`;
+        autoFile.otherCandidates.forEach(cand => {
+          const fName = cand.folderName ? `[${cand.folderName}] ` : '';
+          candidateButtonsHTML += `<button class="ctrl-btn" style="background:rgba(0,122,255,0.08); color:var(--accent-color); border:1px solid rgba(0,122,255,0.2); padding:3px 8px; font-size:0.78rem;" onclick="openDriveFileById('${cand.file.id}', '${cand.file.name.replace(/'/g, "\\'")}', '${cand.folderName.replace(/'/g, "\\'")}')">📄 ${fName}${cand.file.name}</button>`;
+        });
+        candidateButtonsHTML += `</div></div>`;
+      }
+
+      // 単に「出して」「開いて」と言われた場合はPDFウィンドウを開くだけで終了
+      if (!isSummarizeRequest) {
+        coreMsg.innerHTML = `📄 Google Driveより「<b>${autoFile.name}</b>」${folderInfo} を開きました。（一致度: ${matchRate}%）` + candidateButtonsHTML;
+        saveWorkspaceState(currentPage);
+        updateSidebarLogs();
+        return; // ここで終了
+      } else {
+        // 「まとめて」「解説して」と言われた場合は、PDFを開いた上で、そのままAIに内容を要約・解説させる！
+        coreMsg.innerHTML = `📄 Google Driveより「<b>${autoFile.name}</b>」${folderInfo} を自動検出しました（一致度: ${matchRate}%）。<br>🧠 AIが内容を読み込み、要約・解説を生成中...` + candidateButtonsHTML;
+      }
+    } else {
+      if (!isSummarizeRequest) {
+        coreMsg.innerHTML = `⚠️ Google Drive内に該当するPDFが見つかりませんでした。<br><span style="font-size:0.8rem; color:#64748b;">※別のキーワード（科目名など）でお試しいただくか、右の「📁 手動連携」ボタンから直接ファイルを選択できます。</span>`;
+        return;
+      }
+    }
+  }
+
+  const activeFile = attachedFile || autoFile;
+  if (activeFile) {
+    userMsg.textContent += ` [自動読み込み: ${activeFile.name}]`;
+  }
+
+  try {
+    coreMsg.textContent = 'AI解析エンジンで要点を整理・生成中...';
+    const promptText = `あなたは専属学習アシスタント「C.O.R.E.」です。
+要求: 「${text}」
+
+【出力ルール】
+1. 前置きや長い挨拶（「こんにちは！」「〜ですね」など）は一切省き、すぐに要点・結論から始めてください。
+2. 箇条書きや短い見出しを活用し、シンプルで読みやすい文章にしてください。
+3. 参照資料（PDF）がある場合は、重要な定義・公式・結論を具体的に【引用】して簡潔にまとめてください。
+4. 数式は LaTeX形式（例: インラインは $v = f\\lambda$、別行立ては $$y = A \\sin 2\\pi(\\frac{t}{T} - \\frac{x}{\\lambda})$$）で見やすく記述してください。`;
+
+    const aiResponse = await callMultiAIEngine(promptText, activeFile);
+    
+    // Mermaid図解ブロックが含まれている場合のレンダリング処理
+    let formattedContent = aiResponse;
+    if (aiResponse.includes('```mermaid')) {
+      formattedContent = formattedContent.replace(/```mermaid([\s\S]*?)```/g, (m, code) => {
+        return `<div class="mermaid" style="background:#fff; padding:12px; border-radius:12px; border:1px solid #e2e8f0; margin:10px 0; text-align:center;">${code.trim()}</div>`;
+      });
+      formattedContent = formattedContent.replace(/\n/g, '<br>');
+      coreMsg.innerHTML = formattedContent;
+      renderMermaidBlocks(coreMsg);
+    } else {
+      coreMsg.innerHTML = formattedContent.replace(/\n/g, '<br>');
+    }
+
+    // 📐 KaTeXによる美しい数式レンダリングを実行
+    renderMath(coreMsg);
+
+    // 💡 ユーザー要望: 中央チャット欄と同じ内容の別ウィンドウは出さない！
+    // (createWindow は呼び出さず、中央のトーク欄のみにスマートに表示)
+
+    attachedFile = null;
+    saveWorkspaceState(currentPage);
+    updateSidebarLogs();
+    saveLogToServer();
+  } catch (err) {
+    coreMsg.textContent = `エラーが発生しました: ${err.message}`;
+  }
+}
+
+function setupDragAndDrop() {
+  const body = document.body;
+  ['dragenter', 'dragover'].forEach(name => body.addEventListener(name, (e) => { e.preventDefault(); body.classList.add('drag-over'); }));
+  ['dragleave', 'drop'].forEach(name => body.addEventListener(name, (e) => { e.preventDefault(); body.classList.remove('drag-over'); }));
+  body.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  });
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+}
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result.split(',')[1];
+    attachedFile = {
+      name: file.name,
+      type: file.type || 'application/pdf',
+      base64: base64,
+      url: URL.createObjectURL(file)
+    };
+
+    const isPdf = !file.type.includes('image');
+    const embedHTML = file.type.includes('image')
+      ? `<img src="${attachedFile.url}" style="max-width:100%;">`
+      : `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(0,0,0,0.06);">
+          <span style="font-size:0.8rem; color:#64748b;">⚡ SumatraPDFと自動連動中</span>
+          <button class="btn-action" style="padding:4px 10px; font-size:0.75rem;" onclick="openInSumatraPDF('${file.name.replace(/'/g, "\\'")}', '${base64}')">⚡ SumatraPDFで開く</button>
+        </div>
+        <iframe src="${attachedFile.url}" class="pdf-embed"></iframe>
+      `;
+
+    createWindow(`📄 Local: ${file.name}`, embedHTML, 450, 480, window.innerWidth - 480, 60);
+    if (isPdf) {
+      openInSumatraPDF(file.name, base64);
+    }
+    saveWorkspaceState(currentPage);
+  };
+  reader.readAsDataURL(file);
+}
+
+function switchPage(direction) {
+  saveWorkspaceState(currentPage);
+  currentPage += direction;
+  if (currentPage < 1) currentPage = maxPages;
+  if (currentPage > maxPages) currentPage = 1;
+  document.getElementById('pageLabelLeft').textContent = `Page ${currentPage} / ${maxPages}`;
+  document.getElementById('pageLabelRight').textContent = `Page ${currentPage} / ${maxPages}`;
+  document.querySelectorAll('.window').forEach(win => win.remove());
+  loadWorkspaceState(currentPage);
+  updateSidebarLogs();
+}
+
+function saveWorkspaceState(pageNo) {
+  const windowsData = [];
+  document.querySelectorAll('.window').forEach(win => {
+    windowsData.push({
+      title: win.querySelector('.window-title').textContent,
+      html: win.querySelector('.window-body').innerHTML,
+      width: win.style.width,
+      height: win.style.height,
+      left: win.style.left,
+      top: win.style.top,
+      isMinimized: win.classList.contains('minimized')
+    });
+  });
+  const chatHTML = document.getElementById('chatMessages').innerHTML;
+  const pageData = { windows: windowsData, chatHTML: chatHTML };
+  localStorage.setItem(`CORE_PAGE_${pageNo}`, JSON.stringify(pageData));
+}
+
+function loadWorkspaceState(pageNo) {
+  const dataStr = localStorage.getItem(`CORE_PAGE_${pageNo}`);
+  const chatMessages = document.getElementById('chatMessages');
+  if (dataStr) {
+    const pageData = JSON.parse(dataStr);
+    chatMessages.innerHTML = pageData.chatHTML || '';
+    if (pageData.windows) {
+      pageData.windows.forEach(w => {
+        createWindow(w.title, w.html, parseInt(w.width), parseInt(w.height), parseInt(w.left), parseInt(w.top), w.isMinimized);
+      });
+    }
+    renderMath(chatMessages);
+  } else {
+    chatMessages.innerHTML = '';
+  }
+}
+
+function updateSidebarLogs() {
+  const logList = document.getElementById('logList');
+  logList.innerHTML = '';
+  for (let p = 1; p <= maxPages; p++) {
+    const dataStr = localStorage.getItem(`CORE_PAGE_${p}`);
+    if (dataStr) {
+      const pageData = JSON.parse(dataStr);
+      if (pageData.chatHTML) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = pageData.chatHTML;
+        const userMsgs = tempDiv.querySelectorAll('.chat-msg.user');
+        userMsgs.forEach(msg => {
+          const li = document.createElement('li');
+          li.className = 'log-item';
+          li.innerHTML = `[Page ${p}] 💬 ${msg.textContent}`;
+          li.onclick = () => {
+            if (currentPage !== p) {
+              saveWorkspaceState(currentPage);
+              currentPage = p;
+              document.getElementById('pageLabelLeft').textContent = `Page ${p} / ${maxPages}`;
+              document.getElementById('pageLabelRight').textContent = `Page ${p} / ${maxPages}`;
+              document.querySelectorAll('.window').forEach(win => win.remove());
+              loadWorkspaceState(p);
+            }
+            toggleSidebar();
+          };
+          logList.appendChild(li);
+        });
+      }
+    }
+  }
+}
+
+function closeAllWindows() {
+  document.querySelectorAll('.window').forEach(win => win.remove());
+  saveWorkspaceState(currentPage);
+}
+
+function toggleMinimizeAllWindows() {
+  const windows = document.querySelectorAll('.window');
+  if (windows.length === 0) return;
+  isMinimizedAll = !isMinimizedAll;
+  windows.forEach(win => win.classList.toggle('minimized', isMinimizedAll));
+  saveWorkspaceState(currentPage);
+}
+
+function toggleWindowMinimize(win) {
+  win.classList.toggle('minimized');
+  saveWorkspaceState(currentPage);
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+function createWindow(title, contentHTML, width, height, left, top, isMinimized = false) {
+  const desktop = document.getElementById('desktop');
+  const win = document.createElement('div');
+  win.className = 'window' + (isMinimized ? ' minimized' : '');
+  win.style.width = width + 'px'; win.style.height = height + 'px';
+  win.style.left = Math.max(10, left) + 'px'; win.style.top = Math.max(60, top) + 'px';
+  win.style.zIndex = ++windowIndex;
+  win.innerHTML = `
+    <div class="window-header" onclick="if(event.target.tagName !== 'BUTTON') toggleWindowMinimize(this.closest('.window'))">
+      <span class="window-title">${title}</span>
+      <div class="win-actions">
+        <button class="window-btn minimize" onclick="toggleWindowMinimize(this.closest('.window'))"></button>
+        <button class="window-btn close" onclick="this.closest('.window').remove(); saveWorkspaceState(currentPage);"></button>
+      </div>
+    </div>
+    <div class="window-body">${contentHTML}</div>
+  `;
+  win.addEventListener('mousedown', () => { win.style.zIndex = ++windowIndex; });
+  makeDraggable(win);
+  desktop.appendChild(win);
+}
+
+function makeDraggable(elmnt) {
+  const header = elmnt.querySelector('.window-header');
+  let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+  header.onmousedown = (e) => {
+    if (e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    pos3 = e.clientX; pos4 = e.clientY;
+    document.onmouseup = () => {
+      document.onmouseup = null; document.onmousemove = null;
+      saveWorkspaceState(currentPage);
+    };
+    document.onmousemove = (e) => {
+      e.preventDefault();
+      pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+      pos3 = e.clientX; pos4 = e.clientY;
+      elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+      elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+    };
+  };
+}
+
+document.getElementById('chatInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') handleCoreSubmit();
+});
+
+// --- ⚡ SumatraPDF 高速起動連携 ---
+async function openInSumatraPDF(fileName, base64) {
+  if (!base64) return;
+  try {
+    const res = await fetch('/api/open-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: fileName, base64: base64 })
+    });
+    const data = await res.json();
+    if (data.success) {
+      console.log('⚡ SumatraPDF起動成功:', data.message);
+    }
+  } catch (err) {
+    console.warn('SumatraPDF連携エラー:', err);
+  }
+}
+
+// --- 📐 KaTeX 数式自動レンダリング ---
+function renderMath(element) {
+  if (typeof renderMathInElement !== 'undefined' && element) {
+    try {
+      renderMathInElement(element, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    } catch (e) {
+      console.warn('KaTeX数式描画エラー:', e);
+    }
+  }
+}
+
+// --- 📊 Mermaid 図解・マインドマップ自動描画 ---
+if (typeof mermaid !== 'undefined') {
+  mermaid.initialize({ startOnLoad: false, theme: 'default' });
+}
+
+function renderMermaidBlocks(container) {
+  if (typeof mermaid === 'undefined') return;
+  const blocks = container.querySelectorAll('.mermaid');
+  if (blocks.length > 0) {
+    try {
+      mermaid.run({ nodes: blocks });
+    } catch (e) {
+      console.warn('Mermaidレンダリングエラー:', e);
+    }
+  }
+}
+
+// 📊 【ワンクリック図解化機能】現在開いているPDFまたは入力テーマを図解・マインドマップ化
+async function handleDiagramRequest() {
+  const input = document.getElementById('chatInput');
+  const userText = input.value.trim() || (attachedFile ? `「${attachedFile.name}」` : '現在の学習内容');
+  input.value = '';
+
+  const chatMessages = document.getElementById('chatMessages');
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg user';
+  userMsg.textContent = `📊 【図解化リクエスト】${userText} の全体像を図（マインドマップ・フローチャート）にしてください`;
+  chatMessages.appendChild(userMsg);
+
+  const coreMsg = document.createElement('div');
+  coreMsg.className = 'chat-msg core';
+  coreMsg.textContent = '🧠 AI図解エンジン（Mermaid）でダイアグラムを生成中...';
+  chatMessages.appendChild(coreMsg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  const diagramPrompt = `あなたは専属学習アシスタント「C.O.R.E.」です。
+要求: 「${userText}」の内容について、視覚的に一目でわかる【図解（マインドマップまたはフローチャート）】を作成してください。
+必ず回答の中に、以下の形式でMermaidコードブロックを1つ以上含めてください：
+
+\`\`\`mermaid
+graph TD
+  A[テーマ] --> B[要素1]
+  A --> C[要素2]
+  B --> D[詳細]
+\`\`\`
+または
+\`\`\`mermaid
+mindmap
+  root((テーマ))
+    主要ポイント1
+      詳細項目
+    主要ポイント2
+\`\`\`
+
+図の前後には、図のポイントや学習の要点を日本語で分かりやすく解説してください。`;
+
+  try {
+    const aiResponse = await callMultiAIEngine(diagramPrompt, attachedFile);
+    
+    let formattedHTML = aiResponse;
+    if (aiResponse.includes('```mermaid')) {
+      formattedHTML = formattedHTML.replace(/```mermaid([\s\S]*?)```/g, (m, code) => {
+        return `<div class="mermaid" style="background:#fff; padding:12px; border-radius:12px; border:1px solid #e2e8f0; margin:10px 0; text-align:center;">${code.trim()}</div>`;
+      });
+      formattedHTML = formattedHTML.replace(/\n/g, '<br>');
+      coreMsg.innerHTML = formattedHTML;
+      renderMermaidBlocks(coreMsg);
+    } else {
+      coreMsg.textContent = aiResponse;
+    }
+
+    createWindow(`📊 AI図解・マインドマップ — ${userText}`, `<div style="line-height: 1.6;">${formattedHTML}</div>`, 520, 520, 30, 80);
+    setTimeout(() => {
+      const desktop = document.getElementById('desktop');
+      const latestWin = desktop.lastElementChild;
+      if (latestWin) renderMermaidBlocks(latestWin);
+    }, 150);
+
+    saveWorkspaceState(currentPage);
+    updateSidebarLogs();
+    saveLogToServer();
+  } catch (err) {
+    coreMsg.textContent = `図解生成エラー: ${err.message}`;
+  }
+}
+
+// --- 💾 会話ログのファイル保存（Markdown / JSON） ---
+function exportLogs(format = 'md') {
+  let allLogs = [];
+  for (let p = 1; p <= maxPages; p++) {
+    const dataStr = localStorage.getItem(`CORE_PAGE_${p}`);
+    if (dataStr) {
+      const pageData = JSON.parse(dataStr);
+      if (pageData.chatHTML) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = pageData.chatHTML;
+        const msgs = tempDiv.querySelectorAll('.chat-msg');
+        msgs.forEach(m => {
+          allLogs.push({
+            page: p,
+            role: m.classList.contains('user') ? 'user' : 'core',
+            text: m.textContent.trim()
+          });
+        });
+      }
+    }
+  }
+
+  if (allLogs.length === 0) {
+    alert('保存する会話ログがまだありません。');
+    return;
+  }
+
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+
+  if (format === 'json') {
+    const blob = new Blob([JSON.stringify(allLogs, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `core_chat_logs_${dateStr}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } else {
+    let md = `# C.O.R.E. OS 会話ログ記録 (${dateStr})\n\n`;
+    let curP = 0;
+    allLogs.forEach(l => {
+      if (l.page !== curP) {
+        curP = l.page;
+        md += `\n## 📄 Page ${curP}\n\n`;
+      }
+      md += `### ${l.role === 'user' ? '👤 ユーザー' : '🧠 C.O.R.E. OS'}\n${l.text}\n\n`;
+    });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `core_chat_logs_${dateStr}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+// サーバー側に自動バックアップ
+function saveLogToServer() {
+  const chatMessages = document.getElementById('chatMessages');
+  const msgs = chatMessages.querySelectorAll('.chat-msg');
+  const logs = [];
+  msgs.forEach(m => {
+    logs.push({
+      role: m.classList.contains('user') ? 'user' : 'core',
+      text: m.textContent.trim()
+    });
+  });
+  if (logs.length > 0) {
+    fetch('/api/save-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logs: logs, pageNo: currentPage })
+    }).catch(e => console.warn('ログ自動保存エラー:', e));
+  }
+}
+</script>
+</body>
+</html>
